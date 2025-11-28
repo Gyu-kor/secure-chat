@@ -41,6 +41,28 @@ const configuration = {
     ]
 };
 
+const STATUS_CLASS_MAP = {
+    connected: 'status connected',
+    connecting: 'status connecting',
+    disconnected: 'status disconnected'
+};
+
+const STATUS_LABEL_MAP = {
+    connected: '연결됨',
+    connecting: '연결 중...',
+    disconnected: '연결 끊김'
+};
+
+function setConnectionStatus(state, label) {
+    connectionStatus.textContent = label || STATUS_LABEL_MAP[state] || '';
+    connectionStatus.className = STATUS_CLASS_MAP[state] || 'status';
+}
+
+function updateUserCountDisplay(count) {
+    currentUserCount = count;
+    userCount.textContent = `👥 ${currentUserCount}/${MAX_USERS}`;
+}
+
 function init() {
     if (!roomId) {
         alert('방 ID가 없습니다.');
@@ -71,8 +93,7 @@ socket.on('connect', () => {
 
 socket.on('room-created', (data) => {
     console.log('Room created:', data.roomId);
-    connectionStatus.textContent = '연결됨';
-    connectionStatus.className = 'status connected';
+    setConnectionStatus('connected');
     showSystemMessage('방이 생성되었습니다. 다른 사용자를 초대하세요.');
 });
 
@@ -86,10 +107,8 @@ socket.on('room-joined', (data) => {
         return;
     }
     
-    connectionStatus.textContent = '연결됨';
-    connectionStatus.className = 'status connected';
-    currentUserCount = data.userCount;
-    userCount.textContent = `👥 ${currentUserCount}/${MAX_USERS}`;
+    setConnectionStatus('connected');
+    updateUserCountDisplay(data.userCount);
     showSystemMessage('방에 입장했습니다.');
 });
 
@@ -112,8 +131,8 @@ socket.on('user-joined', async (data) => {
         return;
     }
     
-    currentUserCount = data.userCount;
-    userCount.textContent = `👥 ${currentUserCount}/${MAX_USERS}`;
+    updateUserCountDisplay(data.userCount);
+    setConnectionStatus('connected', 'P2P 연결 대기 중');
     showSystemMessage('사용자가 입장했습니다.');
     
     // WebRTC 연결 시작 (offer 생성)
@@ -122,8 +141,8 @@ socket.on('user-joined', async (data) => {
 
 socket.on('user-left', (data) => {
     console.log('User left:', data.userId);
-    currentUserCount = data.userCount;
-    userCount.textContent = `👥 ${currentUserCount}/${MAX_USERS}`;
+    updateUserCountDisplay(data.userCount);
+    setConnectionStatus('disconnected');
     showSystemMessage('사용자가 나갔습니다.');
     
     // WebRTC 연결 정리
@@ -211,11 +230,9 @@ async function createPeerConnection(peerId, isInitiator) {
         console.log(`Connection state with ${peerId}:`, pc.connectionState);
         
         if (pc.connectionState === 'connected') {
-            connectionStatus.textContent = 'P2P 연결됨';
-            connectionStatus.className = 'status connected';
+            setConnectionStatus('connected', 'P2P 연결됨');
         } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
-            connectionStatus.textContent = '연결 끊김';
-            connectionStatus.className = 'status disconnected';
+            setConnectionStatus('disconnected');
         }
     };
     
@@ -248,12 +265,12 @@ function setupDataChannel(peerId, channel) {
     
     channel.onopen = () => {
         console.log(`Data channel opened with ${peerId}`);
-        connectionStatus.textContent = 'P2P 연결됨';
-        connectionStatus.className = 'status connected';
+        setConnectionStatus('connected', 'P2P 연결됨');
     };
     
     channel.onclose = () => {
         console.log(`Data channel closed with ${peerId}`);
+        setConnectionStatus('disconnected');
         dataChannels.delete(peerId);
     };
     
@@ -643,15 +660,7 @@ messageInput.addEventListener('keypress', (e) => {
 });
 
 // 서버 IP 가져오기
-let serverURL = window.location.origin;
-fetch('/api/server-info')
-    .then(res => res.json())
-    .then(data => {
-        serverURL = data.url;
-    })
-    .catch(() => {
-        console.log('Using current origin:', serverURL);
-    });
+const serverURL = window.location.origin;
 
 // QR 코드 표시 (헤더 버튼)
 showQRBtn.addEventListener('click', () => {

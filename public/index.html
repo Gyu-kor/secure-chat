@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Phantom Chat - 익명 암호화 메신저</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Nanum+Gothic+Coding:wght@400;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -90,16 +93,8 @@
         const socket = io();
         
         // 서버 IP 정보 가져오기
-        let serverURL = window.location.origin;
-        fetch('/api/server-info')
-            .then(res => res.json())
-            .then(data => {
-                serverURL = data.url;
-                console.log('서버 URL:', serverURL);
-            })
-            .catch(() => {
-                console.log('로컬 접속:', serverURL);
-            });
+        const serverURL = window.location.origin;
+        console.log('QR base URL:', serverURL);
         
         // 방 만들기
         document.getElementById('createRoomBtn').addEventListener('click', () => {

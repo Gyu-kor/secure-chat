@@ -23,7 +23,7 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
     background: linear-gradient(135deg, var(--bg-color) 0%, #1a0b2e 50%, #0a0118 100%);
     background-attachment: fixed;
     color: var(--text-color);
@@ -331,15 +331,36 @@ input[type="text"]:focus {
     padding: 0;
     height: 100vh;
     overflow: hidden;
+    background: #05010b;
+    color: var(--text-color);
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', 'Fira Code', Consolas, monospace;
+}
+
+.room-page::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+        linear-gradient(0deg, rgba(167,139,250,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(167,139,250,0.04) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mix-blend-mode: screen;
+    pointer-events: none;
+    z-index: 0;
 }
 
 .chat-container {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     height: 100vh;
     max-width: 1200px;
     margin: 0 auto;
-    background: var(--surface-color);
+    background: rgba(5, 1, 11, 0.92);
+    border-left: 1px solid rgba(167, 139, 250, 0.2);
+    border-right: 1px solid rgba(167, 139, 250, 0.2);
+    box-shadow: 0 0 40px rgba(167, 139, 250, 0.08);
 }
 
 .chat-header {
@@ -347,9 +368,9 @@ input[type="text"]:focus {
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    background: var(--bg-color);
-    border-bottom: 1px solid var(--border-color);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    background: rgba(5, 1, 15, 0.98);
+    border-bottom: 1px solid rgba(167, 139, 250, 0.2);
+    box-shadow: 0 5px 25px rgba(0, 0, 0, 0.8);
 }
 
 .room-info {
@@ -366,7 +387,11 @@ input[type="text"]:focus {
     font-size: 0.85rem;
     padding: 4px 12px;
     border-radius: 12px;
-    background: var(--surface-light);
+    background: rgba(167, 139, 250, 0.08);
+    color: var(--secondary-color);
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
 }
 
 .status.connected {
@@ -390,8 +415,8 @@ input[type="text"]:focus {
 }
 
 .btn-icon {
-    background: var(--surface-light);
-    border: 1px solid var(--border-color);
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.35);
     color: var(--text-color);
     width: 44px;
     height: 44px;
@@ -401,11 +426,14 @@ input[type="text"]:focus {
     font-size: 1.2rem;
     transition: all 0.3s;
     flex-shrink: 0;
+    box-shadow: 0 0 15px rgba(139, 92, 246, 0.05);
 }
 
 .btn-icon:hover {
-    background: var(--primary-color);
-    transform: translateY(-2px);
+    background: rgba(139, 92, 246, 0.25);
+    border-color: rgba(139, 92, 246, 0.6);
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.2);
 }
 
 .input-row .btn-icon {
@@ -421,6 +449,8 @@ input[type="text"]:focus {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    background: radial-gradient(circle at top, rgba(139, 92, 246, 0.12), transparent 45%),
+        #070011;
 }
 
 .welcome-message {
@@ -487,13 +517,13 @@ input[type="text"]:focus {
 
 .message-content {
     max-width: 70%;
-    background: rgba(45, 27, 78, 0.8);
+    background: rgba(26, 11, 46, 0.92);
     padding: 14px 18px;
     border-radius: 16px;
     word-wrap: break-word;
-    border: 1px solid var(--border-color);
+    border: 1px solid rgba(139, 92, 246, 0.2);
     backdrop-filter: blur(10px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 25px rgba(139, 92, 246, 0.12);
     direction: ltr;
     text-align: left;
 }
@@ -504,9 +534,9 @@ input[type="text"]:focus {
 }
 
 .message.mine .message-content {
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-hover));
-    border-color: var(--primary-color);
-    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+    background: linear-gradient(135deg, rgba(139, 92, 246, 0.4), rgba(167, 139, 250, 0.6));
+    border-color: rgba(167, 139, 250, 0.5);
+    box-shadow: 0 0 30px rgba(139, 92, 246, 0.25);
 }
 
 .message.mine .message-text {
@@ -525,9 +555,10 @@ input[type="text"]:focus {
     unicode-bidi: embed;
     font-size: 1rem;
     line-height: 1.5;
-    color: #ffffff;
+    color: #f1e7ff;
     font-weight: 400;
     word-break: break-word;
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', 'Fira Code', Consolas, monospace;
 }
 
 .message-image {
@@ -565,8 +596,9 @@ input[type="text"]:focus {
     justify-content: space-between;
     align-items: center;
     font-size: 0.75rem;
-    color: var(--text-muted);
+    color: rgba(167, 139, 250, 0.6);
     margin-top: 8px;
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', monospace;
 }
 
 .message.mine .message-meta {
@@ -593,20 +625,21 @@ input[type="text"]:focus {
 
 .system-message {
     text-align: center;
-    color: var(--text-muted);
+    color: rgba(167, 139, 250, 0.8);
     font-size: 0.85rem;
     padding: 8px;
-    background: rgba(148, 163, 184, 0.1);
+    background: rgba(167, 139, 250, 0.06);
     border-radius: 8px;
     margin: 10px auto;
     max-width: 300px;
+    border: 1px solid rgba(167, 139, 250, 0.2);
 }
 
 .input-container {
     padding: 20px;
-    background: var(--bg-color);
-    border-top: 1px solid var(--border-color);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+    background: rgba(5, 1, 15, 0.95);
+    border-top: 1px solid rgba(139, 92, 246, 0.2);
+    box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.7);
 }
 
 .timer-selector {
@@ -618,16 +651,17 @@ input[type="text"]:focus {
 }
 
 .timer-selector label {
-    color: var(--text-muted);
+    color: rgba(167, 139, 250, 0.7);
 }
 
 .timer-selector select {
-    background: var(--surface-light);
-    border: 1px solid var(--border-color);
+    background: rgba(139, 92, 246, 0.12);
+    border: 1px solid rgba(139, 92, 246, 0.3);
     color: var(--text-color);
     padding: 6px 12px;
     border-radius: 6px;
     cursor: pointer;
+    font-family: 'Share Tech Mono', monospace;
 }
 
 .input-row {
@@ -642,27 +676,28 @@ input[type="text"]:focus {
     flex-shrink: 1;
     margin-bottom: 0;
     font-size: 1.1rem;
-    color: #ffffff !important;
-    background: rgba(26, 11, 46, 0.95);
+    color: #f0e7ff !important;
+    background: rgba(8, 1, 20, 0.95);
     padding: 14px 18px;
     line-height: 1.5;
-    font-weight: 500;
-    border: 2px solid var(--border-color);
+    font-weight: 600;
+    border: 1px solid rgba(139, 92, 246, 0.35);
     height: 48px;
     min-width: 0;
+    font-family: 'Nanum Gothic Coding', 'Share Tech Mono', 'Fira Code', monospace;
 }
 
 .input-row input[type="text"]::placeholder {
-    color: rgba(167, 139, 250, 0.4);
+    color: rgba(167, 139, 250, 0.3);
     opacity: 1;
     font-weight: 300;
 }
 
 .input-row input[type="text"]:focus {
-    background: rgba(26, 11, 46, 1);
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3), 0 0 20px rgba(139, 92, 246, 0.2);
-    color: #ffffff !important;
+    background: rgba(8, 1, 20, 1);
+    border-color: rgba(139, 92, 246, 0.8);
+    box-shadow: 0 0 20px rgba(139, 92, 246, 0.25);
+    color: #f7f0ff !important;
     outline: none;
 }
 
