@@ -15,8 +15,6 @@ const messageInput = document.getElementById('messageInput');
 const sendBtn = document.getElementById('sendBtn');
 const imageBtn = document.getElementById('imageBtn');
 const imageInput = document.getElementById('imageInput');
-const videoBtn = document.getElementById('videoBtn');
-const videoInput = document.getElementById('videoInput');
 const deleteTimer = document.getElementById('deleteTimer');
 const showQRBtn = document.getElementById('showQRBtn');
 const leaveRoomBtn = document.getElementById('leaveRoomBtn');
@@ -29,9 +27,6 @@ let peers = new Map(); // { peerId: RTCPeerConnection }
 let dataChannels = new Map(); // { peerId: RTCDataChannel }
 let currentUserCount = 0;
 const MAX_USERS = 3; // 최대 사용자 수
-
-// 비디오 청크 관리
-const videoChunks = new Map(); // { videoId: { chunks: [], total: 0, deleteAfter: 0 } }
 
 // WebRTC 설정
 const configuration = {
@@ -54,6 +49,24 @@ function init() {
 
 init();
 
+// 모바일 브라우저 자동완성 제안 숨기기
+if (messageInput) {
+    // 추가 속성 설정
+    messageInput.setAttribute('autocomplete', 'off');
+    messageInput.setAttribute('autocapitalize', 'off');
+    messageInput.setAttribute('autocorrect', 'off');
+    messageInput.setAttribute('spellcheck', 'false');
+    
+    // 모바일에서 입력창 클릭 시 키보드 올라오도록 보장
+    messageInput.addEventListener('touchstart', (e) => {
+        e.target.focus();
+    }, { passive: true });
+    
+    messageInput.addEventListener('click', (e) => {
+        e.target.focus();
+    });
+}
+
 // 방 초기화
 function initializeRoom() {
     if (isCreator) {
@@ -69,14 +82,22 @@ socket.on('connect', () => {
     console.log('Connected to server:', mySocketId);
 });
 
-socket.on('room-created', (data) => {
+socket.on('room-created', async (data) => {
     console.log('Room created:', data.roomId);
     connectionStatus.textContent = '연결됨';
     connectionStatus.className = 'status connected';
     showSystemMessage('방이 생성되었습니다. 다른 사용자를 초대하세요.');
+    
+    // 기존 사용자들과 WebRTC 연결 시작 (있는 경우)
+    if (data.existingUsers && data.existingUsers.length > 0) {
+        console.log('Connecting to existing users:', data.existingUsers);
+        for (const userId of data.existingUsers) {
+            await createPeerConnection(userId, true);
+        }
+    }
 });
 
-socket.on('room-joined', (data) => {
+socket.on('room-joined', async (data) => {
     console.log('Room joined:', data.roomId);
     
     // 최대 인원 초과 체크
@@ -91,6 +112,14 @@ socket.on('room-joined', (data) => {
     currentUserCount = data.userCount;
     userCount.textContent = `👥 ${currentUserCount}/${MAX_USERS}`;
     showSystemMessage('방에 입장했습니다.');
+    
+    // 기존 사용자들과 WebRTC 연결 시작
+    if (data.existingUsers && data.existingUsers.length > 0) {
+        console.log('Connecting to existing users:', data.existingUsers);
+        for (const userId of data.existingUsers) {
+            await createPeerConnection(userId, true);
+        }
+    }
 });
 
 socket.on('room-not-found', () => {
@@ -180,18 +209,17 @@ socket.on('ice-candidate', async (data) => {
 
 // 백업 메시지 수신 (P2P 실패 시)
 socket.on('chat-message', (data) => {
-    if (data.type === 'video-chunk') {
-        handleVideoChunk(data.message, data.deleteAfter);
-    } else {
-        displayMessage(data.message, false, data.type, data.deleteAfter);
-    }
+    displayMessage(data.message, false, data.type, data.deleteAfter);
 });
 
 // WebRTC Peer Connection 생성
 async function createPeerConnection(peerId, isInitiator) {
     if (peers.has(peerId)) {
+        console.log(`Peer connection already exists for ${peerId}`);
         return;
     }
+    
+    console.log(`Creating peer connection with ${peerId} (initiator: ${isInitiator})`);
     
     const pc = new RTCPeerConnection(configuration);
     peers.set(peerId, pc);
@@ -203,6 +231,7 @@ async function createPeerConnection(peerId, isInitiator) {
                 to: peerId,
                 candidate: event.candidate
             });
+            console.log(`Sent ICE candidate to ${peerId}`);
         }
     };
     
@@ -213,9 +242,11 @@ async function createPeerConnection(peerId, isInitiator) {
         if (pc.connectionState === 'connected') {
             connectionStatus.textContent = 'P2P 연결됨';
             connectionStatus.className = 'status connected';
+            console.log(`✅ P2P connected with ${peerId}`);
         } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
             connectionStatus.textContent = '연결 끊김';
             connectionStatus.className = 'status disconnected';
+            console.warn(`❌ Connection lost with ${peerId}: ${pc.connectionState}`);
         }
     };
     
@@ -223,6 +254,7 @@ async function createPeerConnection(peerId, isInitiator) {
     if (isInitiator) {
         const dataChannel = pc.createDataChannel('chat');
         setupDataChannel(peerId, dataChannel);
+        console.log(`Created data channel with ${peerId}`);
         
         try {
             const offer = await pc.createOffer();
@@ -232,11 +264,13 @@ async function createPeerConnection(peerId, isInitiator) {
                 to: peerId,
                 offer: offer
             });
+            console.log(`Sent offer to ${peerId}`);
         } catch (err) {
-            console.error('Error creating offer:', err);
+            console.error(`Error creating offer for ${peerId}:`, err);
         }
     } else {
         pc.ondatachannel = (event) => {
+            console.log(`📨 Received data channel from ${peerId}`);
             setupDataChannel(peerId, event.channel);
         };
     }
@@ -244,27 +278,29 @@ async function createPeerConnection(peerId, isInitiator) {
 
 // Data Channel 설정
 function setupDataChannel(peerId, channel) {
+    console.log(`Setting up data channel with ${peerId}, state: ${channel.readyState}`);
     dataChannels.set(peerId, channel);
     
     channel.onopen = () => {
-        console.log(`Data channel opened with ${peerId}`);
+        console.log(`✅ Data channel opened with ${peerId}`);
         connectionStatus.textContent = 'P2P 연결됨';
         connectionStatus.className = 'status connected';
     };
     
     channel.onclose = () => {
-        console.log(`Data channel closed with ${peerId}`);
+        console.log(`❌ Data channel closed with ${peerId}`);
         dataChannels.delete(peerId);
+    };
+    
+    channel.onerror = (error) => {
+        console.error(`Data channel error with ${peerId}:`, error);
     };
     
     channel.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            if (data.type === 'video-chunk') {
-                handleVideoChunk(data.message, data.deleteAfter);
-            } else {
-                displayMessage(data.message, false, data.type, data.deleteAfter);
-            }
+            console.log(`📩 Received message from ${peerId}, type: ${data.type}`);
+            displayMessage(data.message, false, data.type, data.deleteAfter);
         } catch (err) {
             console.error('Error parsing message:', err);
         }
@@ -291,18 +327,43 @@ function sendMessageData(message, type = 'text') {
     const deleteAfterSeconds = parseInt(deleteTimer.value);
     const messageData = { message, type, deleteAfter: deleteAfterSeconds };
     
+    console.log(`Sending message, type: ${type}, channels: ${dataChannels.size}, socket connected: ${socket.connected}`);
+    
     let sentViaP2P = false;
-    dataChannels.forEach((channel) => {
+    let hasOpenChannel = false;
+    
+    dataChannels.forEach((channel, peerId) => {
+        console.log(`Channel ${peerId} state: ${channel.readyState}`);
         if (channel.readyState === 'open') {
-            channel.send(JSON.stringify(messageData));
-            sentViaP2P = true;
+            hasOpenChannel = true;
+            try {
+                channel.send(JSON.stringify(messageData));
+                sentViaP2P = true;
+                console.log(`✅ Sent via P2P to ${peerId}`);
+            } catch (err) {
+                console.error(`Failed to send via P2P to ${peerId}:`, err);
+            }
         }
     });
     
+    // P2P 연결이 없거나 실패한 경우 Socket.io로 전송
     if (!sentViaP2P) {
-        socket.emit('chat-message', messageData);
+        if (!socket.connected) {
+            console.error('Socket.io not connected!');
+            alert('서버 연결이 끊어졌습니다. 페이지를 새로고침해주세요.');
+            return;
+        }
+        console.log('Sending via Socket.io (no P2P connection)');
+        try {
+            socket.emit('chat-message', messageData);
+            console.log('✅ Sent via Socket.io');
+        } catch (err) {
+            console.error('Failed to send via Socket.io:', err);
+            alert('메시지 전송에 실패했습니다.');
+        }
     }
     
+    // 내 화면에 표시
     displayMessage(message, true, type, deleteAfterSeconds);
 }
 
@@ -312,10 +373,22 @@ function sendMessage() {
     
     sendMessageData(message, 'text');
     messageInput.value = '';
+    
+    // 키보드 유지 (포커스 유지) - 강화
+    // preventDefault로 기본 동작 막기
+    messageInput.focus({ preventScroll: true });
+    
+    // iOS에서 확실히 키보드 유지
+    setTimeout(() => {
+        messageInput.focus({ preventScroll: true });
+    }, 0);
 }
 
 // 메시지 표시
 function displayMessage(message, isMine, type = 'text', deleteAfter = 0) {
+    // 현재 사용자가 스크롤을 아래쪽에 있는지 확인
+    const isNearBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${isMine ? 'mine' : 'theirs'}`;
     
@@ -356,18 +429,6 @@ function displayMessage(message, isMine, type = 'text', deleteAfter = 0) {
             document.body.appendChild(overlay);
         };
         messageContent.appendChild(img);
-    } else if (type === 'video') {
-        const video = document.createElement('video');
-        video.src = message;
-        video.className = 'message-video';
-        video.controls = true;
-        video.style.cssText = `
-            max-width: 100%;
-            max-height: 400px;
-            border-radius: 12px;
-            background: rgba(0, 0, 0, 0.2);
-        `;
-        messageContent.appendChild(video);
     } else {
         const textDiv = document.createElement('div');
         textDiv.className = 'message-text';
@@ -399,13 +460,21 @@ function displayMessage(message, isMine, type = 'text', deleteAfter = 0) {
     
     messagesContainer.appendChild(messageDiv);
     
-    // 모바일에서 스크롤이 끝까지 내려가도록 보장
-    setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 100);
-    
-    // 즉시 스크롤도 시도
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // 사용자가 맨 아래에 있거나, 내가 보낸 메시지인 경우에만 자동 스크롤
+    if (isNearBottom || isMine) {
+        // 모바일에서 스크롤이 끝까지 내려가도록 보장 (여러 번 시도)
+        const scrollToBottom = () => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
+        
+        // 즉시 스크롤
+        scrollToBottom();
+        
+        // 약간의 지연 후 다시 스크롤 (DOM 업데이트 대기)
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 150);
+        setTimeout(scrollToBottom, 300);
+    }
     
     // 자동 삭제 타이머 (카운트다운)
     if (deleteAfter > 0) {
@@ -434,17 +503,25 @@ function displayMessage(message, isMine, type = 'text', deleteAfter = 0) {
 
 // 시스템 메시지 표시
 function showSystemMessage(message) {
+    // 현재 사용자가 스크롤을 아래쪽에 있는지 확인
+    const isNearBottom = messagesContainer.scrollHeight - messagesContainer.scrollTop - messagesContainer.clientHeight < 100;
+    
     const messageDiv = document.createElement('div');
     messageDiv.className = 'system-message';
     messageDiv.textContent = message;
     messagesContainer.appendChild(messageDiv);
     
-    // 모바일에서 스크롤이 끝까지 내려가도록 보장
-    setTimeout(() => {
-        messagesContainer.scrollTop = messagesContainer.scrollHeight;
-    }, 100);
-    
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    // 사용자가 맨 아래에 있는 경우에만 자동 스크롤
+    if (isNearBottom) {
+        // 모바일에서 스크롤이 끝까지 내려가도록 보장
+        const scrollToBottom = () => {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        };
+        
+        scrollToBottom();
+        setTimeout(scrollToBottom, 50);
+        setTimeout(scrollToBottom, 150);
+    }
 }
 
 // 이미지 전송
@@ -460,30 +537,6 @@ imageInput.addEventListener('change', (e) => {
     }
     
     imageInput.value = '';
-});
-
-// 비디오 전송
-videoBtn.addEventListener('click', () => {
-    videoInput.click();
-});
-
-videoInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    
-    if (file && file.type.startsWith('video/')) {
-        // 비디오 크기 체크 (최대 30MB)
-        const maxSize = 30 * 1024 * 1024; // 30MB
-        if (file.size > maxSize) {
-            alert('비디오 파일이 너무 큽니다. 30MB 이하의 파일을 선택해주세요.\n\n팁: 휴대폰에서 낮은 화질로 촬영하거나 편집 앱으로 압축하세요.');
-            videoInput.value = '';
-            return;
-        }
-        
-        showSystemMessage('비디오 전송 중... (파일 크기: ' + (file.size / 1024 / 1024).toFixed(1) + 'MB)');
-        sendVideoFile(file);
-    }
-    
-    videoInput.value = '';
 });
 
 // 이미지 압축 및 전송
@@ -536,131 +589,58 @@ function compressAndSendImage(file) {
     reader.readAsDataURL(file);
 }
 
-// 비디오 전송 (최적화)
-function sendVideoFile(file) {
-    const reader = new FileReader();
-    
-    reader.onload = (event) => {
-        const videoDataUrl = event.target.result;
-        const videoSize = videoDataUrl.length;
-        
-        console.log('Video size:', (videoSize / 1024 / 1024).toFixed(2), 'MB');
-        
-        // 작은 파일은 바로 전송
-        if (videoSize < 5 * 1024 * 1024) { // 5MB 미만
-            sendMessageData(videoDataUrl, 'video');
-            showSystemMessage('비디오 전송 완료');
-        } else {
-            // 큰 파일은 청크로 나눠서 전송
-            sendLargeVideo(videoDataUrl);
-        }
-    };
-    
-    reader.onerror = () => {
-        console.error('Video read failed');
-        alert('비디오를 읽을 수 없습니다.');
-    };
-    
-    reader.readAsDataURL(file);
-}
-
-// 큰 비디오를 청크로 나눠서 전송
-function sendLargeVideo(videoDataUrl) {
-    const chunkSize = 1024 * 1024; // 1MB 청크
-    const chunks = [];
-    
-    for (let i = 0; i < videoDataUrl.length; i += chunkSize) {
-        chunks.push(videoDataUrl.slice(i, i + chunkSize));
-    }
-    
-    const videoId = Date.now() + '_' + Math.random();
-    let sentChunks = 0;
-    
-    chunks.forEach((chunk, index) => {
-        setTimeout(() => {
-            const chunkData = {
-                videoId: videoId,
-                chunk: chunk,
-                index: index,
-                total: chunks.length,
-                isLast: index === chunks.length - 1
-            };
-            
-            dataChannels.forEach((channel) => {
-                if (channel.readyState === 'open') {
-                    channel.send(JSON.stringify({
-                        message: chunkData,
-                        type: 'video-chunk',
-                        deleteAfter: parseInt(deleteTimer.value)
-                    }));
-                }
-            });
-            
-            socket.emit('chat-message', {
-                message: chunkData,
-                type: 'video-chunk',
-                deleteAfter: parseInt(deleteTimer.value)
-            });
-            
-            sentChunks++;
-            const progress = Math.round((sentChunks / chunks.length) * 100);
-            showSystemMessage(`비디오 전송 중... ${progress}%`);
-            
-            if (chunkData.isLast) {
-                showSystemMessage('비디오 전송 완료');
-            }
-        }, index * 100); // 각 청크를 100ms 간격으로 전송
-    });
-    
-    // 내 화면에도 표시
-    displayMessage(videoDataUrl, true, 'video', parseInt(deleteTimer.value));
-}
-
-// 비디오 청크 처리
-function handleVideoChunk(chunkData, deleteAfter) {
-    const { videoId, chunk, index, total, isLast } = chunkData;
-    
-    if (!videoChunks.has(videoId)) {
-        videoChunks.set(videoId, {
-            chunks: new Array(total),
-            total: total,
-            deleteAfter: deleteAfter,
-            received: 0
-        });
-        showSystemMessage(`비디오 수신 중... 0%`);
-    }
-    
-    const videoData = videoChunks.get(videoId);
-    videoData.chunks[index] = chunk;
-    videoData.received++;
-    
-    const progress = Math.round((videoData.received / total) * 100);
-    showSystemMessage(`비디오 수신 중... ${progress}%`);
-    
-    if (isLast && videoData.received === total) {
-        // 모든 청크 수신 완료, 조립
-        const completeVideo = videoData.chunks.join('');
-        displayMessage(completeVideo, false, 'video', deleteAfter);
-        videoChunks.delete(videoId);
-        showSystemMessage('비디오 수신 완료');
-    }
-}
-
 // 메시지 전송 이벤트
-sendBtn.addEventListener('click', sendMessage);
+sendBtn.addEventListener('click', (e) => {
+    e.preventDefault(); // 기본 동작 방지
+    sendMessage();
+});
 
 messageInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
+        e.preventDefault(); // 기본 동작 방지
         sendMessage();
     }
 });
 
-// 서버 IP 가져오기
+// 입력창 포커스 시 스크롤 (키보드가 올라올 때)
+messageInput.addEventListener('focus', () => {
+    // 모바일에서 키보드가 올라오도록 보장
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 300); // 키보드 애니메이션 대기
+}, { passive: true });
+
+// 키보드 표시/숨김 시 스크롤 조정
+let resizeTimer;
+window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 100);
+});
+
+// 초기 로드 시 스크롤을 맨 아래로
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 100);
+});
+
+// 현재 접속 URL 사용 (QR 코드에 현재 링크 사용)
 let serverURL = window.location.origin;
 fetch('/api/server-info')
     .then(res => res.json())
     .then(data => {
-        serverURL = data.url;
+        // 서버에서 반환한 URL이 현재 접속 URL과 다르면 현재 URL 우선 사용
+        const currentOrigin = window.location.origin;
+        
+        // 현재 접속 URL 사용 (공개 도메인/IP인 경우)
+        if (currentOrigin !== 'http://localhost:3000' && !currentOrigin.includes('127.0.0.1') && !currentOrigin.includes('192.168.')) {
+            serverURL = currentOrigin;
+        } else {
+            // 로컬 접속인 경우 서버에서 반환한 URL 사용
+            serverURL = data.url;
+        }
     })
     .catch(() => {
         console.log('Using current origin:', serverURL);

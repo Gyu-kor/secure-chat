@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Phantom Chat - 대화방</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -63,22 +66,20 @@
                     type="file" 
                     id="imageInput" 
                     accept="image/*" 
-                    style="display: none;"
-                >
-                <input 
-                    type="file" 
-                    id="videoInput" 
-                    accept="video/*" 
+                    capture="environment"
                     style="display: none;"
                 >
                 <button id="imageBtn" class="btn-icon" title="이미지 전송">📷</button>
-                <button id="videoBtn" class="btn-icon" title="비디오 전송">🎥</button>
                 <input 
                     type="text" 
                     id="messageInput" 
                     placeholder="여기에 메시지를 입력하세요"
                     autocomplete="off"
                     spellcheck="false"
+                    inputmode="text"
+                    autocapitalize="off"
+                    autocorrect="off"
+                    enterkeyhint="send"
                 >
                 <button id="sendBtn" class="btn btn-primary">전송</button>
             </div>

@@ -89,12 +89,22 @@
     <script>
         const socket = io();
         
-        // 서버 IP 정보 가져오기
+        // 현재 접속 URL 사용 (QR 코드에 현재 링크 사용)
         let serverURL = window.location.origin;
         fetch('/api/server-info')
             .then(res => res.json())
             .then(data => {
-                serverURL = data.url;
+                // 서버에서 반환한 URL이 현재 접속 URL과 다르면 현재 URL 우선 사용
+                const currentOrigin = window.location.origin;
+                const serverOrigin = data.url.split(':').slice(0, 2).join(':') + (data.url.includes(':3000') ? ':3000' : '');
+                
+                // 현재 접속 URL 사용 (공개 도메인/IP인 경우)
+                if (currentOrigin !== 'http://localhost:3000' && !currentOrigin.includes('127.0.0.1') && !currentOrigin.includes('192.168.')) {
+                    serverURL = currentOrigin;
+                } else {
+                    // 로컬 접속인 경우 서버에서 반환한 URL 사용
+                    serverURL = data.url;
+                }
                 console.log('서버 URL:', serverURL);
             })
             .catch(() => {
@@ -153,18 +163,24 @@
         document.getElementById('scanQRBtn').addEventListener('click', async () => {
             if (!qrScanning) {
                 try {
+                    // HTTPS 체크 (로컬호스트 제외)
+                    if (location.protocol !== 'https:' && !location.hostname.includes('localhost') && location.hostname !== '127.0.0.1') {
+                        alert('카메라 기능은 HTTPS 연결에서만 사용할 수 있습니다.\n\n현재: ' + location.protocol + '//' + location.host + '\n\n방 이름을 직접 입력하여 입장하세요.');
+                        return;
+                    }
+                    
                     // 브라우저 지원 확인
                     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                         alert('카메라 기능을 사용할 수 없습니다.\n\n대신 다음 방법을 사용하세요:\n1. 다른 기기의 카메라로 QR 스캔\n2. 방 이름을 직접 입력');
                         return;
                     }
                     
-                    // 모바일 최적화된 카메라 설정
+                    // 모바일 최적화된 카메라 설정 (더 유연한 설정)
                     const constraints = {
                         video: {
                             facingMode: { ideal: 'environment' },
-                            width: { ideal: 1280 },
-                            height: { ideal: 720 }
+                            width: { ideal: 1280, max: 1920 },
+                            height: { ideal: 720, max: 1080 }
                         },
                         audio: false
                     };
@@ -184,18 +200,39 @@
                     
                     if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
                         errorMessage = '카메라 권한이 거부되었습니다.\n\n';
-                        errorMessage += '📱 모바일:\n';
-                        errorMessage += '- 설정 > Safari/Chrome > 카메라 허용\n\n';
-                        errorMessage += '💻 PC:\n';
-                        errorMessage += '- 주소창의 카메라 아이콘 클릭\n';
-                        errorMessage += '- 권한을 "허용"으로 변경\n\n';
+                        errorMessage += '모바일 해결 방법:\n';
+                        errorMessage += '1. Safari: 설정 > Safari > 카메라 > 허용\n';
+                        errorMessage += '2. Chrome: 설정 > Chrome > 사이트 설정 > 카메라 > 허용\n';
+                        errorMessage += '3. 또는 주소창의 자물쇠 아이콘 클릭 > 카메라 허용\n\n';
+                        errorMessage += 'PC 해결 방법:\n';
+                        errorMessage += '- 주소창의 카메라 아이콘 클릭 > 허용\n\n';
                         errorMessage += '또는 방 이름을 직접 입력하세요.';
                     } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
                         errorMessage = '카메라를 찾을 수 없습니다.\n\n방 이름을 직접 입력하여 입장하세요.';
                     } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
                         errorMessage = '카메라가 다른 앱에서 사용 중입니다.\n\n다른 앱을 종료하거나 방 이름을 직접 입력하세요.';
+                    } else if (err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
+                        // 제약 조건을 만족하지 못하는 경우 더 유연한 설정으로 재시도
+                        try {
+                            const fallbackConstraints = {
+                                video: { facingMode: 'environment' },
+                                audio: false
+                            };
+                            const stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                            qrVideo.srcObject = stream;
+                            qrVideo.style.display = 'block';
+                            qrVideo.setAttribute('playsinline', 'true');
+                            qrVideo.setAttribute('autoplay', 'true');
+                            await qrVideo.play();
+                            qrScanning = true;
+                            document.getElementById('scanQRBtn').textContent = '스캔 중지';
+                            scanQRCode();
+                            return;
+                        } catch (fallbackErr) {
+                            errorMessage = '카메라 설정에 실패했습니다.\n\n방 이름을 직접 입력하여 입장하세요.';
+                        }
                     } else {
-                        errorMessage = '카메라를 사용할 수 없습니다.\n\n방 이름을 직접 입력하여 입장하세요.';
+                        errorMessage = '카메라를 사용할 수 없습니다.\n\n오류: ' + err.name + '\n\n방 이름을 직접 입력하여 입장하세요.';
                     }
                     
                     alert(errorMessage);

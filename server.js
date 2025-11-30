@@ -10,7 +10,7 @@ const io = socketIo(server, {
     origin: "*",
     methods: ["GET", "POST"]
   },
-  maxHttpBufferSize: 50e6, // 50MB
+  maxHttpBufferSize: 100e6, // 100MB (큰 비디오 청크 고려)
   pingTimeout: 120000,
   connectTimeout: 120000,
   upgradeTimeout: 120000
@@ -41,10 +41,15 @@ function getLocalIP() {
 
 // IP 정보 제공 API
 app.get('/api/server-info', (req, res) => {
+  // 요청의 Host 헤더를 사용하여 현재 접속 URL 반환
+  const host = req.get('host') || `${getLocalIP()}:${PORT}`;
+  const protocol = req.protocol || 'http';
+  const currentURL = `${protocol}://${host}`;
+  
   res.json({
     ip: getLocalIP(),
     port: PORT,
-    url: `http://${getLocalIP()}:${PORT}`
+    url: currentURL
   });
 });
 
@@ -74,7 +79,14 @@ io.on('connection', (socket) => {
     room.users.add(socket.id);
     socket.roomId = roomId;
     
-    socket.emit('room-created', { roomId });
+    // 방에 있는 모든 사용자 ID 목록 전달
+    const existingUsers = Array.from(room.users).filter(id => id !== socket.id);
+    
+    socket.emit('room-created', { 
+      roomId,
+      existingUsers: existingUsers,
+      userCount: room.users.size
+    });
     
     // 방의 다른 사용자들에게 알림
     socket.to(roomId).emit('user-joined', {
@@ -107,7 +119,14 @@ io.on('connection', (socket) => {
     
     const userCount = room.users.size;
     
-    socket.emit('room-joined', { roomId, userCount });
+    // 방에 있는 모든 사용자 ID 목록 전달 (자신 제외)
+    const existingUsers = Array.from(room.users).filter(id => id !== socket.id);
+    
+    socket.emit('room-joined', { 
+      roomId, 
+      userCount,
+      existingUsers: existingUsers
+    });
     
     // 방의 다른 사용자들에게 알림
     socket.to(roomId).emit('user-joined', {
