@@ -1,0 +1,27 @@
+const MILLISECONDS_PER_HOUR = 60 * 60 * 1000;
+const MILLISECONDS_PER_DAY = 24 * MILLISECONDS_PER_HOUR;
+
+module.exports = {
+  SERVER: {
+    PORT: process.env.PORT || 3000,
+    SOCKET_IO: {
+      MAX_HTTP_BUFFER_SIZE: 100 * 1024 * 1024, // 100MB
+      PING_TIMEOUT: 120000,
+      CONNECT_TIMEOUT: 120000,
+      UPGRADE_TIMEOUT: 120000,
+      CORS: {
+        ORIGIN: '*',
+        METHODS: ['GET', 'POST']
+      }
+    }
+  },
+  ROOM: {
+    MAX_USERS_PER_ROOM: 3,
+    TIMEOUT_MS: MILLISECONDS_PER_DAY,
+    CLEANUP_INTERVAL_MS: MILLISECONDS_PER_HOUR
+  },
+  MESSAGE: {
+    DEFAULT_TYPE: 'text'
+  }
+};
+
