@@ -19,3 +19,4 @@ function shouldAutoScroll(isNearBottom, isMyMessage) {
   return isNearBottom || isMyMessage;
 }
 
+
